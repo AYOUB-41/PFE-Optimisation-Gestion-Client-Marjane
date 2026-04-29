@@ -28,6 +28,7 @@ By utilizing **Data Science** methodologies, this project provides solutions for
 ├── src/            # Python scripts for data cleaning and ML pipelines
 └── README.md       # Project documentation
 ```
+
 👨‍💻 Author
 
 AYOUB ZOUITINE
