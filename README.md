@@ -1,7 +1,7 @@
 # PFE: Retail Performance Optimization - Marjane
 
 ## 📝 Project Description
-This project was developed as part of my **Project of Fin d'Études (PFE) internship at Marjane**. The primary objective is to leverage transactional data to transform customer insights into actionable growth strategies for the retail sector.
+This project was developed as part of my **Project of Final year (PFE) internship at Marjane**. The primary objective is to leverage transactional data to transform customer insights into actionable growth strategies for the retail sector.
 
 By utilizing **Data Science** methodologies, this project provides solutions for:
 * **Customer Segmentation:** Implementing an RFM (Recency, Frequency, Monetary) model and clustering to identify high-value VIP clients.
