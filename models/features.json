@@ -1,0 +1,9 @@
+[
+    "Recency",
+    "Frequency",
+    "Monetary",
+    "Montant_par_visite",
+    "Recency_x_Frequency",
+    "Log_Montant",
+    "Log_Frequency"
+]
