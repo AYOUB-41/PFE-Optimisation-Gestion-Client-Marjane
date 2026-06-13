@@ -14,6 +14,20 @@ BASE_DIR = Path(__file__).resolve().parent
 MODEL_DIR = BASE_DIR / "models"
 ASSETS_DIR = BASE_DIR / "assets"
 
+# Seuils metier utilises pour transformer la probabilite du modele
+# en niveau de risque lisible par un manager.
+RISK_THRESHOLDS = {
+    "low": 0.30,
+    "medium": 0.60,
+}
+
+# Couleurs conservees dans toute l'application pour garder une lecture stable.
+RISK_COLORS = {
+    "Faible": "#00A86B",
+    "Moyen": "#F5A623",
+    "Élevé": "#E74C3C",
+}
+
 st.set_page_config(
     page_title="Dashboard Churn - Marjane",
     page_icon="🛒",
@@ -378,6 +392,13 @@ st.markdown(
         color: #1F2933 !important;
     }
 
+    div[data-testid="stMultiSelect"] label,
+    div[data-testid="stMultiSelect"] label p {
+        color: #1F2933 !important;
+        background: transparent !important;
+        font-weight: 800 !important;
+    }
+
     /* ── File uploader ── */
     div[data-testid="stFileUploader"] label,
     div[data-testid="stFileUploader"] label p {
@@ -449,13 +470,15 @@ st.markdown(
         border: 1px solid var(--card-border);
         border-top: 4px solid var(--marjane-green);
         border-radius: 8px;
-        padding: 0.75rem;
+        padding: 0.5rem;
         box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+        overflow: hidden;
     }
 
     div[data-testid="stVegaLiteChart"] canvas,
     div[data-testid="stVegaLiteChart"] svg {
         background: #FFFFFF !important;
+        max-width: 100% !important;
     }
 
     /* Toolbar graphiques visible et stylisée */
@@ -556,6 +579,7 @@ st.markdown(
 
 @st.cache_resource
 def load_artifacts():
+    """Charge une seule fois le modele, le scaler et les metadonnees."""
     model = joblib.load(MODEL_DIR / "churn_model.pkl")
     scaler = joblib.load(MODEL_DIR / "scaler.pkl")
     with open(MODEL_DIR / "features.json", "r", encoding="utf-8") as f:
@@ -566,6 +590,7 @@ def load_artifacts():
 
 
 def prepare_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Prepare les variables attendues par le modele a partir d'une table RFM."""
     data = df.copy()
     required = ["Recency", "Frequency", "Monetary"]
     missing = [c for c in required if c not in data.columns]
@@ -575,6 +600,8 @@ def prepare_features(df: pd.DataFrame) -> pd.DataFrame:
         data[col] = pd.to_numeric(data[col], errors="coerce")
     if data[required].isna().any().any():
         raise ValueError("Recency, Frequency et Monetary doivent être numériques.")
+
+    # Variables derivees utilisees pendant l'entrainement du modele churn.
     data["Frequency"] = data["Frequency"].replace(0, np.nan)
     data["Montant_par_visite"] = data["Monetary"] / data["Frequency"]
     data["Recency_x_Frequency"] = data["Recency"] * data["Frequency"]
@@ -587,6 +614,7 @@ def prepare_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_rfm_from_transactions(df: pd.DataFrame) -> pd.DataFrame:
+    """Transforme un fichier de transactions brutes en table client RFM."""
     data = df.copy()
     required = ["Customer ID", "InvoiceDate", "Invoice", "Quantity", "Price"]
     missing = [c for c in required if c not in data.columns]
@@ -600,8 +628,15 @@ def build_rfm_from_transactions(df: pd.DataFrame) -> pd.DataFrame:
     data = data[(data["Quantity"] > 0) & (data["Price"] > 0)]
     if data.empty:
         raise ValueError("Aucune transaction valide après nettoyage.")
+
+    # Montant de chaque ligne de ticket, puis date de reference pour la recence.
     data["TotalAmount"] = data["Quantity"] * data["Price"]
     analysis_date = data["InvoiceDate"].max() + pd.Timedelta(days=1)
+
+    # Agregation au niveau client :
+    # Recency = jours depuis le dernier achat
+    # Frequency = nombre de factures
+    # Monetary = montant total depense
     aggs = {
         "InvoiceDate": lambda x: (analysis_date - x.max()).days,
         "Invoice": "nunique",
@@ -619,6 +654,7 @@ def build_rfm_from_transactions(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def detect_and_prepare_input(df: pd.DataFrame):
+    """Detecte automatiquement si le fichier est deja RFM ou transactionnel."""
     rfm_cols = {"Recency", "Frequency", "Monetary"}
     tx_cols = {"Customer ID", "InvoiceDate", "Invoice", "Quantity", "Price"}
     if rfm_cols.issubset(df.columns):
@@ -634,14 +670,16 @@ def detect_and_prepare_input(df: pd.DataFrame):
 
 
 def assign_risk(p: float) -> str:
-    if p < 0.30:
+    """Convertit une probabilite de churn en niveau de risque."""
+    if p < RISK_THRESHOLDS["low"]:
         return "Faible"
-    if p < 0.60:
+    if p < RISK_THRESHOLDS["medium"]:
         return "Moyen"
     return "Élevé"
 
 
 def logo_slot(file_name: str, label: str) -> str:
+    """Affiche un logo si le fichier existe, sinon un emplacement reserve."""
     path = ASSETS_DIR / file_name
     if path.exists():
         suffix = path.suffix.lower().replace(".", "")
@@ -661,6 +699,7 @@ def logo_slot(file_name: str, label: str) -> str:
 
 
 def kpi_card(label: str, value: str, color: str = "#009E73"):
+    """Composant reutilisable pour afficher les KPI sous forme de carte."""
     st.markdown(
         f"""
         <div class="kpi-card" style="border-top-color:{color};">
@@ -673,6 +712,7 @@ def kpi_card(label: str, value: str, color: str = "#009E73"):
 
 
 def chart_height(n_rows: int) -> int:
+    """Ajuste la hauteur d'un graphique selon le volume de donnees."""
     if n_rows <= 10:
         return 250
     elif n_rows <= 50:
@@ -683,6 +723,7 @@ def chart_height(n_rows: int) -> int:
 
 
 def altair_cfg():
+    """Configuration commune pour garder des graphes lisibles en theme clair."""
     return dict(
         background="#FFFFFF",
         view={"fill": "#FFFFFF", "stroke": None},
@@ -714,7 +755,7 @@ st.markdown(
         {logo_slot("marjane_logo.png", "MARJANE")}
         <div class="hero">
             <div class="hero-badge">Pilotage churn client</div>
-            <h1>Dashboard Churn Client — Marjane</h1>
+            <h1>Dashboard de Prédiction du Churn Client</h1>
             <p>Import d'un fichier magasin · Calcul RFM automatique · Prédiction des clients à risque</p>
         </div>
         {logo_slot("marjane_group_logo.png", "MARJANE GROUP")}
@@ -811,7 +852,7 @@ uploaded_file = st.file_uploader(
 # ── Empty state ───────────────────────────────────────────────────────────────
 
 if uploaded_file is None:
-    st.info("⬆️  Importe un fichier CSV ou Excel pour lancer la prédiction.")
+    st.info("  Importe un fichier CSV ou Excel pour lancer la prédiction.")
 
     col_ex1, col_ex2 = st.columns(2)
 
@@ -968,7 +1009,11 @@ with ch1:
                 "Risque:N",
                 scale=alt.Scale(
                     domain=["Faible", "Moyen", "Élevé"],
-                    range=["#00A86B", "#F5A623", "#E74C3C"],
+                    range=[
+                        RISK_COLORS["Faible"],
+                        RISK_COLORS["Moyen"],
+                        RISK_COLORS["Élevé"],
+                    ],
                 ),
                 legend=None,
             ),
@@ -1034,7 +1079,11 @@ with ch2:
                 "Risque:N",
                 scale=alt.Scale(
                     domain=["Faible", "Moyen", "Élevé"],
-                    range=["#00A86B", "#F5A623", "#E74C3C"],
+                    range=[
+                        RISK_COLORS["Faible"],
+                        RISK_COLORS["Moyen"],
+                        RISK_COLORS["Élevé"],
+                    ],
                 ),
                 legend=alt.Legend(
                     title="Risque",
