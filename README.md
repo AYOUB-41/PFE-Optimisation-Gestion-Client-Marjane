@@ -50,6 +50,7 @@ PFE-Optimisation-Gestion-Client-Marjane/
 ├── reporting_powerbi/
 │   ├── powerbi_clients.csv
 │   └── powerbi_kpis.csv
+│   └── Dashboard_Intelligence_Client_Marjane.pbix
 ├── requirements.txt
 └── README.md
 ```
@@ -104,6 +105,7 @@ Le dossier `reporting_powerbi/` contient les fichiers de données utilisés pour
 
 - `powerbi_clients.csv`
 - `powerbi_kpis.csv`
+- `Dashboard_Intelligence_Client_Marjane.pbix`
 
 Le dashboard Power BI présente :
 
