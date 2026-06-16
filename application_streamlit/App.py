@@ -555,6 +555,41 @@ st.markdown(
         align-items: center;
         gap: 0.5rem;
     }
+    /* ── Recommandations ── */
+    .reco-section {
+        background: #FFFFFF;
+        border: 1px solid var(--card-border);
+        border-top: 4px solid var(--marjane-blue);
+        border-radius: 10px;
+        padding: 1.25rem 1.5rem;
+        margin: 1.5rem 0;
+        box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+    }
+    .reco-section-title {
+        font-size: 1.1rem;
+        font-weight: 800;
+        color: var(--marjane-blue);
+        margin-bottom: 1rem;
+    }
+    .reco-card {
+        border-radius: 8px;
+        padding: 1rem 1.1rem;
+        margin-bottom: 0.75rem;
+        border: 1px solid;
+    }
+    .reco-card-eleve  { background:#FFF5F5; border-color:#FECACA; border-left:5px solid #E74C3C; }
+    .reco-card-moyen  { background:#FFFBEB; border-color:#FDE68A; border-left:5px solid #F5A623; }
+    .reco-card-faible { background:#F0FDF4; border-color:#BBF7D0; border-left:5px solid #00A86B; }
+    .reco-card-title  { font-weight:800; font-size:0.95rem; margin-bottom:0.4rem; }
+    .reco-card-eleve  .reco-card-title { color:#7F1D1D; }
+    .reco-card-moyen  .reco-card-title { color:#78350F; }
+    .reco-card-faible .reco-card-title { color:#14532D; }
+    .reco-card-body   { font-size:0.88rem; color:#374151; line-height:1.6; }
+    .reco-card-actions{ margin-top:0.6rem; display:flex; flex-wrap:wrap; gap:0.4rem; }
+    .reco-tag         { display:inline-block; border-radius:999px; padding:0.2rem 0.65rem; font-size:0.78rem; font-weight:700; }
+    .tag-red    { background:#FEE2E2; color:#991B1B; }
+    .tag-orange { background:#FEF3C7; color:#92400E; }
+    .tag-green  { background:#D1FAE5; color:#065F46; }
 
     /* ── Divider ── */
     hr {
@@ -589,6 +624,43 @@ def load_artifacts():
         model_info = json.load(f)
     return model, scaler, features, model_info
 
+def normaliser_colonnes(df: pd.DataFrame) -> pd.DataFrame:
+    """Détecte et renomme automatiquement les colonnes selon leur signification."""
+    mapping = {
+        "Recency": [
+            "recency", "récence", "recence", "jours_inactivite",
+            "jours_depuis_achat", "derniere_visite", "last_purchase",
+            "days_since_last_purchase", "inactivite", "r_score",
+        ],
+        "Frequency": [
+            "frequency", "fréquence", "frequence", "nb_achats",
+            "nombre_achats", "nb_visites", "nombre_visites",
+            "nb_commandes", "purchases", "orders", "f_score",
+        ],
+        "Monetary": [
+            "monetary", "montant", "ca_total", "chiffre_affaires",
+            "total_achats", "total_depense", "revenue", "amount",
+            "valeur_client", "m_score",
+        ],
+        "Customer ID": [
+            "customer_id", "customerid", "id_client", "client_id",
+            "id", "customer", "client", "num_client",
+        ],
+        "City": [
+            "city", "ville", "magasin", "store", "region",
+            "localisation", "location",
+        ],
+    }
+    df = df.copy()
+    colonnes_normalisees = {}
+    for col in df.columns:
+        col_lower = col.lower().strip().replace(" ", "_")
+        for nom_standard, synonymes in mapping.items():
+            if col_lower in synonymes or col_lower == nom_standard.lower():
+                colonnes_normalisees[col] = nom_standard
+                break
+    df = df.rename(columns=colonnes_normalisees)
+    return df
 
 def prepare_features(df: pd.DataFrame) -> pd.DataFrame:
     """Prepare les variables attendues par le modele a partir d'une table RFM."""
@@ -656,17 +728,24 @@ def build_rfm_from_transactions(df: pd.DataFrame) -> pd.DataFrame:
 
 def detect_and_prepare_input(df: pd.DataFrame):
     """Detecte automatiquement si le fichier est deja RFM ou transactionnel."""
+    # Normaliser les colonnes avant toute vérification
+    df = normaliser_colonnes(df)
+
     rfm_cols = {"Recency", "Frequency", "Monetary"}
     tx_cols = {"Customer ID", "InvoiceDate", "Invoice", "Quantity", "Price"}
+
     if rfm_cols.issubset(df.columns):
         return prepare_features(df), "Fichier RFM préparé"
     if tx_cols.issubset(df.columns):
         rfm = build_rfm_from_transactions(df)
         return prepare_features(rfm), "Fichier transactionnel brut"
+
+    cols_trouvees = list(df.columns)
     raise ValueError(
-        "Format non reconnu. Le fichier doit contenir soit "
-        "Recency / Frequency / Monetary, soit "
-        "Customer ID / InvoiceDate / Invoice / Quantity / Price."
+        f"Format non reconnu. Colonnes trouvées : {cols_trouvees}\n\n"
+        "Le fichier doit contenir soit :\n"
+        "• Recency / Frequency / Monetary (ou équivalents)\n"
+        "• Customer ID / InvoiceDate / Invoice / Quantity / Price"
     )
 
 
@@ -677,7 +756,50 @@ def assign_risk(p: float) -> str:
     if p < RISK_THRESHOLDS["medium"]:
         return "Moyen"
     return "Élevé"
+def get_recommendation(row) -> dict:
+    """Génère une recommandation business personnalisée selon le profil client."""
+    recency  = row.get("Recency", 0)
+    frequency = row.get("Frequency", 0)
+    monetary  = row.get("Monetary", 0)
+    risque    = row.get("Risque", "Faible")
 
+    if risque == "Élevé":
+        if recency > 365:
+            return {
+                "titre": "🔴 Campagne de reconquête urgente",
+                "description": f"Client inactif depuis {int(recency)} jours. Risque très élevé de perte définitive.",
+                "actions": ["Bon de réduction 25%", "Appel téléphonique direct", "Offre personnalisée"],
+                "priorite": "PRIORITÉ 1",
+            }
+        else:
+            return {
+                "titre": "🟠 Campagne de réactivation",
+                "description": f"Client à risque élevé — inactif depuis {int(recency)} jours.",
+                "actions": ["Email de réactivation", "Offre groupée produits fréquents", "Programme fidélité VIP"],
+                "priorite": "PRIORITÉ 1",
+            }
+    elif risque == "Moyen":
+        if frequency >= 5:
+            return {
+                "titre": "🟡 Renforcer la fidélisation",
+                "description": f"Client actif ({int(frequency)} achats) mais montre des signes de désengagement.",
+                "actions": ["Newsletter personnalisée", "Points fidélité bonus", "Invitation événement Marjane"],
+                "priorite": "PRIORITÉ 2",
+            }
+        else:
+            return {
+                "titre": "🟡 Stimuler l'engagement",
+                "description": f"Client peu fréquent ({int(frequency)} achats) avec risque modéré.",
+                "actions": ["Offre découverte nouveaux rayons", "Coupon revisité", "Push notification"],
+                "priorite": "PRIORITÉ 2",
+            }
+    else:
+        return {
+            "titre": "🟢 Maintenir la satisfaction",
+            "description": f"Client actif et fidèle — CA de {monetary:,.0f} MAD.",
+            "actions": ["Programme fidélité premium", "Accès ventes privées", "Enquête satisfaction"],
+            "priorite": "PRIORITÉ 3",
+        }
 
 def logo_slot(file_name: str, label: str) -> str:
     """Affiche un logo si le fichier existe, sinon un emplacement reserve."""
@@ -807,7 +929,6 @@ with st.sidebar:
         ),
         unsafe_allow_html=True,
     )
-    st.divider()
     st.markdown("**Colonnes obligatoires**")
     st.markdown(
         """
@@ -818,6 +939,28 @@ with st.sidebar:
         <div class="schema-card">
             <strong>Mode brut</strong>
             <span>Customer ID, InvoiceDate,<br>Invoice, Quantity, Price</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.divider()
+    st.markdown("**Noms alternatifs acceptés**")
+    st.markdown(
+        """
+        <div class="schema-card">
+            <strong>Recency</strong>
+            <span>jours_depuis_achat, jours_inactivite,
+            last_purchase, recence</span>
+        </div>
+        <div class="schema-card">
+            <strong>Frequency</strong>
+            <span>nb_achats, nombre_visites,
+            nb_commandes, frequence</span>
+        </div>
+        <div class="schema-card">
+            <strong>Monetary</strong>
+            <span>montant, ca_total,
+            chiffre_affaires, total_depense</span>
         </div>
         """,
         unsafe_allow_html=True,
@@ -1139,31 +1282,119 @@ else:
     st.info("Aucun client à risque élevé dans la sélection actuelle.")
 
 st.divider()
+# ── Plan d'action et recommandations ─────────────────────────────
+
+st.subheader(" Plan d'action recommandé")
+
+n_eleve  = int((filtered_df["Risque"] == "Élevé").sum())
+n_moyen  = int((filtered_df["Risque"] == "Moyen").sum())
+n_faible = int((filtered_df["Risque"] == "Faible").sum())
+
+# Construire le HTML séparément pour éviter les conflits f-string
+html_reco = (
+    '<div class="reco-section">'
+    '<div class="reco-section-title"> Synthèse des recommandations pour les managers Marjane</div>'
+
+    f'<div class="reco-card reco-card-eleve">'
+    f'<div class="reco-card-title">🔴 Risque Élevé — {n_eleve} clients — PRIORITÉ 1</div>'
+    '<div class="reco-card-body">'
+    'Ces clients n\'ont pas acheté depuis plus de 180 jours avec une probabilité de churn &gt; 60%.'
+    ' Une action immédiate est nécessaire.<br><br>'
+    '<strong>Actions recommandées :</strong><br>'
+    '• Bon de réduction personnalisé de 20 à 25% sur leur catégorie préférée<br>'
+    '• Campagne SMS/Email de réactivation dans les 48h<br>'
+    '• Appel téléphonique pour les clients à forte valeur<br>'
+    '• Offre groupée basée sur les règles d\'association identifiées'
+    '</div>'
+    '<div class="reco-card-actions">'
+    '<span class="reco-tag tag-red">⚡ Action sous 48h</span>'
+    '<span class="reco-tag tag-red">📱 SMS + Email</span>'
+    '<span class="reco-tag tag-red">🎯 Offre personnalisée</span>'
+    '</div></div>'
+
+    f'<div class="reco-card reco-card-moyen">'
+    f'<div class="reco-card-title">🟡 Risque Moyen — {n_moyen} clients — PRIORITÉ 2</div>'
+    '<div class="reco-card-body">'
+    'Ces clients montrent des signes de désengagement avec une probabilité entre 30% et 60%.<br><br>'
+    '<strong>Actions recommandées :</strong><br>'
+    '• Newsletter mensuelle avec offres ciblées<br>'
+    '• Points fidélité bonus sur le prochain achat<br>'
+    '• Invitation aux événements exclusifs Marjane<br>'
+    '• Cross-selling basé sur les produits complémentaires'
+    '</div>'
+    '<div class="reco-card-actions">'
+    '<span class="reco-tag tag-orange">📧 Newsletter ciblée</span>'
+    '<span class="reco-tag tag-orange">⭐ Points fidélité</span>'
+    '<span class="reco-tag tag-orange">🛍️ Cross-selling</span>'
+    '</div></div>'
+
+    f'<div class="reco-card reco-card-faible">'
+    f'<div class="reco-card-title">🟢 Risque Faible — {n_faible} clients — PRIORITÉ 3</div>'
+    '<div class="reco-card-body">'
+    'Ces clients sont actifs et engagés avec une probabilité de churn &lt; 30%.<br><br>'
+    '<strong>Actions recommandées :</strong><br>'
+    '• Programme de fidélité premium Marjane<br>'
+    '• Accès anticipé aux nouvelles collections<br>'
+    '• Enquête de satisfaction<br>'
+    '• Programme de parrainage'
+    '</div>'
+    '<div class="reco-card-actions">'
+    '<span class="reco-tag tag-green">💎 Programme premium</span>'
+    '<span class="reco-tag tag-green">🎁 Ventes privées</span>'
+    '<span class="reco-tag tag-green">📊 Satisfaction</span>'
+    '</div></div>'
+
+    '</div>'
+)
+
+st.markdown(html_reco, unsafe_allow_html=True)
 
 # ── Résultats complets ────────────────────────────────────────────────────────
 
 st.subheader("Résultats de prédiction — tableau complet")
 
+# Colonnes affichées dans le dashboard
 preferred = [
     "Customer ID", "City", "Recency", "Frequency",
     "Monetary", "Proba_Churn", "Churn_Predit", "Risque",
 ]
 visible = [c for c in preferred if c in filtered_df.columns]
 
+# Ajouter recommandation dans le tableau dashboard
+filtered_df["Recommandation"] = filtered_df.apply(
+    lambda row: get_recommendation(row)["titre"], axis=1
+)
+filtered_df["Action_Priorite"] = filtered_df["Risque"].map({
+    "Élevé": "PRIORITÉ 1 — Action sous 48h",
+    "Moyen":  "PRIORITÉ 2 — Action sous 2 semaines",
+    "Faible": "PRIORITÉ 3 — Suivi mensuel",
+})
+
+# Colonnes affichées avec recommandation
+visible_avec_reco = visible + ["Recommandation", "Action_Priorite"]
+
 st.dataframe(
-    filtered_df[visible].style.format({
+    filtered_df[visible_avec_reco].style.format({
         "Monetary": "{:,.2f}",
         "Proba_Churn": "{:.1%}",
     }),
     use_container_width=True,
     hide_index=True,
 )
+# Copie propre pour l'export
+export_df = filtered_df[visible_avec_reco].copy()
+
+# Convertir Proba_Churn en pourcentage lisible dans Excel
+export_df["Proba_Churn"] = export_df["Proba_Churn"].apply(
+    lambda x: f"{x:.1%}"
+)
+
+csv_result = export_df.to_csv(index=False).encode("utf-8-sig")
 
 dl_col1, dl_col2 = st.columns([1, 3])
 with dl_col1:
-    csv_result = filtered_df.to_csv(index=False).encode("utf-8-sig")
     st.download_button(
-        "  Télécharger les résultats",
+        " Télécharger les résultats",
         data=csv_result,
         file_name="predictions_churn_marjane.csv",
         mime="text/csv",
