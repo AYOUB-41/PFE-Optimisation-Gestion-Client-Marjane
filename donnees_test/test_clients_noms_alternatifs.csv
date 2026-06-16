@@ -1,0 +1,16 @@
+id_client,jours_depuis_achat,nb_achats,ca_total,ville
+30001,25,8,12500.00,Casablanca
+30002,210,2,800.00,Rabat
+30003,380,1,450.00,Marrakech
+30004,15,12,28000.00,Casablanca
+30005,290,3,1200.00,Tanger
+30006,45,6,5400.00,Agadir
+30007,420,1,300.00,Fès
+30008,180,4,3200.00,Rabat
+30009,10,15,42000.00,Casablanca
+30010,350,2,900.00,Kenitra
+30011,60,7,8700.00,Marrakech
+30012,265,1,600.00,Oujda
+30013,5,20,65000.00,Casablanca
+30014,310,2,750.00,Tanger
+30015,90,5,4100.00,Agadir
