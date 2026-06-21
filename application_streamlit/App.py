@@ -8,6 +8,12 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+try:
+    from mlxtend.frequent_patterns import association_rules, fpgrowth
+except ImportError:
+    association_rules = None
+    fpgrowth = None
+
 alt.renderers.set_embed_options(actions=False)
 
 APP_DIR = Path(__file__).resolve().parent
@@ -650,6 +656,25 @@ def normaliser_colonnes(df: pd.DataFrame) -> pd.DataFrame:
             "city", "ville", "magasin", "store", "region",
             "localisation", "location",
         ],
+        "Invoice": [
+            "invoice", "invoice_no", "invoiceno", "facture",
+            "num_facture", "ticket", "ticket_id", "order_id",
+        ],
+        "InvoiceDate": [
+            "invoicedate", "invoice_date", "date_facture",
+            "date_achat", "date", "purchase_date", "order_date",
+        ],
+        "Quantity": [
+            "quantity", "quantite", "qte", "qty", "nombre_articles",
+        ],
+        "Price": [
+            "price", "prix", "unit_price", "prix_unitaire",
+            "unitprice",
+        ],
+        "Description": [
+            "description", "produit", "product", "product_name",
+            "nom_produit", "article", "libelle", "designation",
+        ],
     }
     df = df.copy()
     colonnes_normalisees = {}
@@ -747,6 +772,69 @@ def detect_and_prepare_input(df: pd.DataFrame):
         "• Recency / Frequency / Monetary (ou équivalents)\n"
         "• Customer ID / InvoiceDate / Invoice / Quantity / Price"
     )
+
+
+def build_association_rules(df: pd.DataFrame, min_support: float, min_confidence: float):
+    """Calcule les règles d'association à partir d'un fichier transactionnel."""
+    if fpgrowth is None or association_rules is None:
+        raise ImportError("La bibliothèque mlxtend n'est pas installée.")
+
+    df = normaliser_colonnes(df)
+    required = ["Invoice", "Description", "Quantity"]
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        raise ValueError("Colonnes manquantes pour l'analyse du panier : " + ", ".join(missing))
+
+    basket_df = df.copy()
+    basket_df = basket_df.dropna(subset=["Invoice", "Description"])
+    basket_df["Description"] = basket_df["Description"].astype(str).str.strip()
+    basket_df["Invoice"] = basket_df["Invoice"].astype(str)
+    basket_df["Quantity"] = pd.to_numeric(basket_df["Quantity"], errors="coerce")
+    basket_df = basket_df.dropna(subset=["Quantity"])
+    basket_df = basket_df[basket_df["Quantity"] > 0]
+
+    if basket_df.empty:
+        raise ValueError("Aucune transaction valide pour l'analyse du panier.")
+
+    top_products = basket_df["Description"].value_counts().head(50).index
+    basket_df = basket_df[basket_df["Description"].isin(top_products)]
+
+    basket_matrix = (
+        basket_df.groupby(["Invoice", "Description"])["Quantity"]
+        .sum()
+        .unstack(fill_value=0)
+        .astype(bool)
+    )
+    basket_matrix = basket_matrix[basket_matrix.sum(axis=1) >= 2]
+
+    if basket_matrix.empty:
+        raise ValueError("Aucun panier multi-produits trouvé après nettoyage.")
+
+    frequent_itemsets = fpgrowth(
+        basket_matrix,
+        min_support=min_support,
+        use_colnames=True,
+    )
+
+    if frequent_itemsets.empty:
+        return pd.DataFrame()
+
+    rules = association_rules(frequent_itemsets, metric="lift", min_threshold=1.0)
+    rules = rules[rules["confidence"] >= min_confidence].copy()
+    rules = rules.sort_values(["lift", "confidence"], ascending=False)
+
+    rules["Produit acheté"] = rules["antecedents"].apply(lambda x: ", ".join(sorted(list(x))))
+    rules["Produit recommandé"] = rules["consequents"].apply(lambda x: ", ".join(sorted(list(x))))
+
+    return rules[
+        [
+            "Produit acheté",
+            "Produit recommandé",
+            "support",
+            "confidence",
+            "lift",
+        ]
+    ].reset_index(drop=True)
 
 
 def assign_risk(p: float) -> str:
@@ -1398,4 +1486,124 @@ with dl_col1:
         data=csv_result,
         file_name="predictions_churn_marjane.csv",
         mime="text/csv",
+    )
+
+
+st.divider()
+st.subheader("Analyse du panier — recommandations produits")
+
+st.markdown(
+    """
+    Cette section aide à identifier les produits à proposer ensemble.
+    Elle transforme les tickets de caisse en recommandations de cross-selling :
+    si un client achète un produit, le dashboard suggère les produits les plus
+    souvent associés dans les paniers.
+    """
+)
+
+basket_source_df = normaliser_colonnes(raw_df)
+
+if {"Invoice", "Description", "Quantity"}.issubset(set(basket_source_df.columns)):
+    basket_col1, basket_col2, basket_col3 = st.columns([1, 1, 2])
+
+    with basket_col1:
+        st.markdown("**Filtre 1 — Fréquence minimale de l'association**")
+        min_support = st.slider(
+            "Support minimum",
+            min_value=0.005,
+            max_value=0.10,
+            value=0.01,
+            step=0.005,
+            format="%.3f",
+            help="Part minimale des paniers contenant l'association de produits.",
+        )
+
+    with basket_col2:
+        st.markdown("**Filtre 2 — Fiabilité minimale de la recommandation**")
+        min_confidence = st.slider(
+            "Confiance minimum",
+            min_value=0.10,
+            max_value=0.90,
+            value=0.30,
+            step=0.05,
+            format="%.2f",
+            help="Probabilité qu'un produit recommandé soit acheté lorsque le produit de départ est présent.",
+        )
+
+    try:
+        basket_rules = build_association_rules(
+            basket_source_df,
+            min_support=min_support,
+            min_confidence=min_confidence,
+        )
+
+        if basket_rules.empty:
+            st.warning("Aucune règle trouvée avec ces seuils. Essaie de réduire le support ou la confiance.")
+        else:
+            with basket_col3:
+                kpi_card("Règles trouvées", f"{len(basket_rules)}", "#009E73")
+
+            st.dataframe(
+                basket_rules.head(20)
+                .rename(
+                    columns={
+                        "support": "Support",
+                        "confidence": "Confiance",
+                        "lift": "Lift",
+                    }
+                )
+                .style.format(
+                    {
+                        "Support": "{:.2%}",
+                        "Confiance": "{:.2%}",
+                        "Lift": "{:.2f}",
+                    }
+                ),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            top_rule = basket_rules.iloc[0]
+            st.markdown(
+                f"""
+                <div class="status-box">
+                    Recommandation principale : si le client achète
+                    <strong>{top_rule['Produit acheté']}</strong>
+                    proposer aussi <strong>{top_rule['Produit recommandé']}</strong>
+                     confiance {top_rule['confidence']:.1%}—lift {top_rule['lift']:.2f}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            with st.expander("Comprendre les indicateurs : Support, Confiance et Lift"):
+                st.markdown(
+                    """
+                    **Support** : part des paniers qui contiennent l'association de produits.
+                    Exemple : un support de 20% signifie que 20% des paniers contiennent ces produits ensemble.
+
+                    **Confiance** : probabilité d'acheter le produit recommandé quand le produit de départ est déjà dans le panier.
+                    Exemple : une confiance de 80% signifie que 8 clients sur 10 qui achètent le produit A achètent aussi le produit B.
+
+                    **Lift** : force de l'association par rapport au hasard.
+                    - Lift = 1 : pas d'association particulière.
+                    - Lift > 1 : les produits sont achetés ensemble plus souvent que le hasard.
+                    - Plus le lift est élevé, plus l'association est intéressante pour le cross-selling.
+                    """
+                )
+
+            rules_csv = basket_rules.to_csv(index=False).encode("utf-8-sig")
+            st.download_button(
+                "Télécharger les règles d'association",
+                data=rules_csv,
+                file_name="regles_association_marjane.csv",
+                mime="text/csv",
+            )
+
+    except Exception as exc:
+        st.error(str(exc))
+else:
+    st.info(
+        "Pour activer l'analyse du panier, importe un fichier transactionnel contenant "
+        "au minimum les colonnes Invoice, Description et Quantity."
     )

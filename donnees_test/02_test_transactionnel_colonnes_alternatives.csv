@@ -1,0 +1,21 @@
+ticket_id,client_id,date_achat,produit,qte,prix,magasin
+TCK001,40001,2026-01-08,Yaourt nature,4,3.50,Casablanca
+TCK001,40001,2026-01-08,Granola miel,1,39.00,Casablanca
+TCK002,40002,2026-01-09,Yaourt nature,2,3.50,Rabat
+TCK002,40002,2026-01-09,Granola miel,1,39.00,Rabat
+TCK003,40003,2025-07-15,Eau minerale,6,4.00,Marrakech
+TCK003,40003,2025-07-15,Jus orange,2,11.00,Marrakech
+TCK004,40004,2025-07-18,Eau minerale,3,4.00,Tanger
+TCK004,40004,2025-07-18,Jus orange,2,11.00,Tanger
+TCK005,40005,2025-03-10,Shampooing,1,42.00,Agadir
+TCK005,40005,2025-03-10,Gel douche,2,27.00,Agadir
+TCK006,40006,2025-03-12,Shampooing,1,42.00,Fes
+TCK006,40006,2025-03-12,Gel douche,1,27.00,Fes
+TCK007,40007,2026-02-22,Pates alimentaires,3,9.00,Kenitra
+TCK007,40007,2026-02-22,Sauce tomate,2,7.50,Kenitra
+TCK008,40008,2026-02-23,Pates alimentaires,2,9.00,Oujda
+TCK008,40008,2026-02-23,Sauce tomate,1,7.50,Oujda
+TCK009,40009,2024-12-28,Lessive poudre,1,65.00,Meknes
+TCK009,40009,2024-12-28,Adoucissant,1,31.00,Meknes
+TCK010,40010,2026-03-03,Lessive poudre,1,65.00,Casablanca
+TCK010,40010,2026-03-03,Adoucissant,2,31.00,Casablanca

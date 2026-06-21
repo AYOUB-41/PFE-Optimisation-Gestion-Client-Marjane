@@ -1,30 +1,30 @@
-# PFE - Optimisation de la Gestion Client chez Marjane
+# SFE - Optimisation de la Gestion Client chez Marjane
 
 ## Description du projet
 
-Ce projet est réalisé dans le cadre de mon stage de Projet de Fin d'Études au sein de Marjane.
+Ce projet est realise dans le cadre de mon **Stage de Fin d'Etudes** au sein de Marjane.
 
-L'objectif est d'exploiter des données transactionnelles retail afin d'améliorer la compréhension du comportement client et d'aider à la prise de décision commerciale.
+L'objectif est d'exploiter des donnees transactionnelles retail afin d'ameliorer la comprehension du comportement client et d'aider a la prise de decision commerciale.
 
 Le projet repose sur trois axes Data Science :
 
-- **Segmentation RFM des clients** : identification des profils clients selon la récence, la fréquence et le montant d'achat.
-- **Analyse du panier d'achat** : extraction de règles d'association pour identifier les produits souvent achetés ensemble.
-- **Prédiction du churn client** : détection des clients présentant un risque d'inactivité ou de départ.
+- **Segmentation RFM des clients** : identification des profils clients selon la recence, la frequence et le montant d'achat.
+- **Analyse du panier d'achat** : extraction de regles d'association pour identifier les produits souvent achetes ensemble.
+- **Prediction du churn client** : detection des clients presentant un risque d'inactivite ou de depart.
 
-Les résultats sont exploités à travers :
+Les resultats sont exploites a travers :
 
-- un dashboard **Power BI** pour le suivi décisionnel ;
-- un dashboard **Streamlit** pour la prédiction interactive du churn.
+- un dashboard **Power BI** pour le suivi decisionnel ;
+- un dashboard **Streamlit** pour la prediction interactive du churn et les recommandations panier.
 
-## Titre du PFE
+## Titre du SFE
 
-**Optimisation de la gestion client chez Marjane par l'analyse des données transactionnelles**
+**Optimisation de la gestion client chez Marjane par l'analyse des donnees transactionnelles**
 
-## Structure du dépôt
+## Structure du depot
 
 ```text
-PFE-Optimisation-Gestion-Client-Marjane/
+SFE-Optimisation-Gestion-Client-Marjane/
 ├── application_streamlit/
 │   ├── App.py
 │   └── assets/
@@ -36,8 +36,9 @@ PFE-Optimisation-Gestion-Client-Marjane/
 │   ├── rfm_export.csv
 │   └── churn_predictions.csv
 ├── donnees_test/
-│   ├── test_clients_churn.csv
-│   └── test_transactions_brut.csv
+│   ├── 01_test_transactionnel_brut.csv
+│   ├── 02_test_transactionnel_colonnes_alternatives.csv
+│   └── 03_test_clients_rfm_prepare.csv
 ├── modeles/
 │   ├── churn_model.pkl
 │   ├── scaler.pkl
@@ -49,7 +50,7 @@ PFE-Optimisation-Gestion-Client-Marjane/
 │   └── 03_Prediction_Churn_Clients_Marjane.ipynb
 ├── reporting_powerbi/
 │   ├── powerbi_clients.csv
-│   └── powerbi_kpis.csv
+│   ├── powerbi_kpis.csv
 │   └── Dashboard_Intelligence_Client_Marjane.pbix
 ├── requirements.txt
 └── README.md
@@ -63,14 +64,14 @@ Fichier :
 
 `notebooks/01_Segmentation_RFM_Clients_Marjane.ipynb`
 
-Ce notebook prépare les données, calcule les métriques RFM et applique un clustering K-Means afin d'identifier les principaux segments clients :
+Ce notebook prepare les donnees, calcule les metriques RFM et applique un clustering K-Means afin d'identifier les principaux segments clients :
 
 - VIP / Champions
-- Clients réguliers
-- Clients à risque / perdus
+- Clients reguliers
+- Clients a risque / perdus
 - Gros acheteurs occasionnels
 
-### 2. Analyse du Panier et Règles d'Association
+### 2. Analyse du Panier et Regles d'Association
 
 Fichier :
 
@@ -78,21 +79,25 @@ Fichier :
 
 Ce notebook applique l'analyse du panier d'achat avec FP-Growth afin d'extraire les associations de produits les plus pertinentes.
 
-Les indicateurs utilisés sont :
+Les indicateurs utilises sont :
 
 - support ;
 - confiance ;
 - lift.
 
-### 3. Prédiction du Churn Client
+Une cellule d'export permet aussi de sauvegarder les regles dans :
+
+`donnees/regles_association.csv`
+
+### 3. Prediction du Churn Client
 
 Fichier :
 
 `notebooks/03_Prediction_Churn_Clients_Marjane.ipynb`
 
-Ce notebook construit une variable cible de churn à partir d'un seuil d'inactivité de 180 jours, entraîne des modèles supervisés et sauvegarde le meilleur modèle pour l'application Streamlit.
+Ce notebook construit une variable cible de churn a partir d'un seuil d'inactivite de 180 jours, entraine des modeles supervises et sauvegarde le meilleur modele pour l'application Streamlit.
 
-Modèles utilisés :
+Modeles utilises :
 
 - Random Forest
 - XGBoost
@@ -101,16 +106,16 @@ Modèles utilisés :
 
 ### Dashboard Power BI
 
-Le dossier `reporting_powerbi/` contient les fichiers de données utilisés pour le reporting Power BI :
+Le dossier `reporting_powerbi/` contient les fichiers de donnees utilises pour le reporting Power BI :
 
 - `powerbi_clients.csv`
 - `powerbi_kpis.csv`
 - `Dashboard_Intelligence_Client_Marjane.pbix`
 
-Le dashboard Power BI présente :
+Le dashboard Power BI presente :
 
 - les KPIs globaux ;
-- la répartition des clients par ville ;
+- la repartition des clients par ville ;
 - les segments RFM ;
 - les niveaux de risque de churn.
 
@@ -122,12 +127,15 @@ L'application Streamlit se trouve dans :
 
 Elle permet de :
 
-- importer un fichier client préparé avec les métriques RFM ;
+- importer un fichier client prepare avec les metriques RFM ;
 - importer un fichier transactionnel brut ;
-- calculer automatiquement les métriques RFM si nécessaire ;
-- prédire la probabilité de churn ;
+- reconnaitre certains noms de colonnes alternatifs ;
+- calculer automatiquement les metriques RFM si necessaire ;
+- predire la probabilite de churn ;
 - afficher le niveau de risque ;
-- télécharger les résultats de prédiction.
+- exploiter l'analyse du panier avec les regles d'association ;
+- proposer des recommandations de cross-selling ;
+- telecharger les resultats de prediction et les regles d'association.
 
 ## Lancer l'application Streamlit
 
@@ -138,9 +146,17 @@ python -m pip install -r requirements.txt
 python -m streamlit run application_streamlit/App.py
 ```
 
-## Formats de fichiers acceptés par Streamlit
+## Fichiers de test
 
-### Mode RFM préparé
+Le dossier `donnees_test/` contient trois fichiers pour tester toutes les fonctionnalites du dashboard :
+
+- `01_test_transactionnel_brut.csv` : fichier transactionnel standard, teste le churn et l'analyse du panier.
+- `02_test_transactionnel_colonnes_alternatives.csv` : fichier transactionnel avec noms de colonnes alternatifs.
+- `03_test_clients_rfm_prepare.csv` : fichier client deja prepare avec les metriques RFM.
+
+## Formats de fichiers acceptes par Streamlit
+
+### Mode RFM prepare
 
 Le fichier doit contenir au minimum :
 
@@ -156,24 +172,30 @@ Le fichier doit contenir au minimum :
 Customer ID, InvoiceDate, Invoice, Quantity, Price
 ```
 
-Si la colonne `City` est présente, elle est conservée pour les filtres et l'analyse locale.
+Si la colonne `City` est presente, elle est conservee pour les filtres et l'analyse locale.
 
-## Données
+Pour activer la partie analyse du panier dans Streamlit, le fichier transactionnel doit aussi contenir :
 
-Le projet utilise le dataset public **Online Retail II**, adapté au contexte marocain.
+```text
+Invoice, Description, Quantity
+```
 
-La colonne pays a été transformée en villes représentant le réseau Marjane, par exemple :
+## Donnees
+
+Le projet utilise le dataset public **Online Retail II**, adapte au contexte marocain.
+
+La colonne pays a ete transformee en villes representant le reseau Marjane, par exemple :
 
 - Casablanca
 - Rabat
 - Marrakech
 - Tanger
 - Agadir
-- Fès
+- Fes
 - Kenitra
 - Oujda
 
-## Technologies utilisées
+## Technologies utilisees
 
 - Python
 - Pandas
@@ -190,4 +212,4 @@ La colonne pays a été transformée en villes représentant le réseau Marjane,
 
 **Ayoub Zouitine**
 
-Étudiant en Data Science & AI Systems
+Etudiant en Data Science & AI Systems
